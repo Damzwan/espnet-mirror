@@ -26,6 +26,7 @@ from espnet.nets.pytorch_backend.tacotron2.encoder import Encoder
 from espnet2.torch_utils.device_funcs import force_gatherable
 from espnet2.tts.abs_tts import AbsTTS
 from espnet2.tts.gst.style_encoder import StyleEncoder
+from espnet2.tts.vae.vae import VAE
 
 
 class Tacotron2(AbsTTS):
@@ -41,57 +42,59 @@ class Tacotron2(AbsTTS):
     """
 
     def __init__(
-        self,
-        # network structure related
-        idim: int,
-        odim: int,
-        embed_dim: int = 512,
-        elayers: int = 1,
-        eunits: int = 512,
-        econv_layers: int = 3,
-        econv_chans: int = 512,
-        econv_filts: int = 5,
-        atype: str = "location",
-        adim: int = 512,
-        aconv_chans: int = 32,
-        aconv_filts: int = 15,
-        cumulate_att_w: bool = True,
-        dlayers: int = 2,
-        dunits: int = 1024,
-        prenet_layers: int = 2,
-        prenet_units: int = 256,
-        postnet_layers: int = 5,
-        postnet_chans: int = 512,
-        postnet_filts: int = 5,
-        output_activation: str = None,
-        use_batch_norm: bool = True,
-        use_concate: bool = True,
-        use_residual: bool = False,
-        reduction_factor: int = 1,
-        # extra embedding related
-        spks: Optional[int] = None,
-        langs: Optional[int] = None,
-        spk_embed_dim: Optional[int] = None,
-        spk_embed_integration_type: str = "concat",
-        use_gst: bool = False,
-        gst_tokens: int = 10,
-        gst_heads: int = 4,
-        gst_conv_layers: int = 6,
-        gst_conv_chans_list: Sequence[int] = (32, 32, 64, 64, 128, 128),
-        gst_conv_kernel_size: int = 3,
-        gst_conv_stride: int = 2,
-        gst_gru_layers: int = 1,
-        gst_gru_units: int = 128,
-        # training related
-        dropout_rate: float = 0.5,
-        zoneout_rate: float = 0.1,
-        use_masking: bool = True,
-        use_weighted_masking: bool = False,
-        bce_pos_weight: float = 5.0,
-        loss_type: str = "L1+L2",
-        use_guided_attn_loss: bool = True,
-        guided_attn_loss_sigma: float = 0.4,
-        guided_attn_loss_lambda: float = 1.0,
+            self,
+            # network structure related
+            idim: int,
+            odim: int,
+            embed_dim: int = 512,
+            elayers: int = 1,
+            eunits: int = 512,
+            econv_layers: int = 3,
+            econv_chans: int = 512,
+            econv_filts: int = 5,
+            atype: str = "location",
+            adim: int = 512,
+            aconv_chans: int = 32,
+            aconv_filts: int = 15,
+            cumulate_att_w: bool = True,
+            dlayers: int = 2,
+            dunits: int = 1024,
+            prenet_layers: int = 2,
+            prenet_units: int = 256,
+            postnet_layers: int = 5,
+            postnet_chans: int = 512,
+            postnet_filts: int = 5,
+            output_activation: str = None,
+            use_batch_norm: bool = True,
+            use_concate: bool = True,
+            use_residual: bool = False,
+            reduction_factor: int = 1,
+            # extra embedding related
+            spks: Optional[int] = None,
+            langs: Optional[int] = None,
+            spk_embed_dim: Optional[int] = None,
+            spk_embed_integration_type: str = "concat",
+            use_gst: bool = False,
+            gst_tokens: int = 10,
+            gst_heads: int = 4,
+            gst_conv_layers: int = 6,
+            gst_conv_chans_list: Sequence[int] = (32, 32, 64, 64, 128, 128),
+            gst_conv_kernel_size: int = 3,
+            gst_conv_stride: int = 2,
+            gst_gru_layers: int = 1,
+            gst_gru_units: int = 128,
+            # training related
+            dropout_rate: float = 0.5,
+            zoneout_rate: float = 0.1,
+            use_masking: bool = True,
+            use_weighted_masking: bool = False,
+            bce_pos_weight: float = 5.0,
+            loss_type: str = "L1+L2",
+            use_guided_attn_loss: bool = True,
+            guided_attn_loss_sigma: float = 0.4,
+            guided_attn_loss_lambda: float = 1.0,
+            use_vae: bool = False,
+            vae_z_dim=16,
     ):
         """Initialize Tacotron2 module.
 
@@ -159,6 +162,7 @@ class Tacotron2(AbsTTS):
         self.cumulate_att_w = cumulate_att_w
         self.reduction_factor = reduction_factor
         self.use_gst = use_gst
+        self.use_vae = use_vae
         self.use_guided_attn_loss = use_guided_attn_loss
         self.loss_type = loss_type
 
@@ -204,6 +208,19 @@ class Tacotron2(AbsTTS):
                 gru_layers=gst_gru_layers,
                 gru_units=gst_gru_units,
             )
+
+        if self.use_vae:
+            self.vae = VAE(
+                idim=odim,  # the input is mel-spectrogram
+                conv_layers=gst_conv_layers,
+                conv_chans_list=gst_conv_chans_list,
+                conv_kernel_size=gst_conv_kernel_size,
+                conv_stride=gst_conv_stride,
+                gru_layers=gst_gru_layers,
+                gru_units=gst_gru_units,
+                vae_z_dim=vae_z_dim
+            )
+            self.vae_transformer = torch.nn.Linear(vae_z_dim, embed_dim)
 
         self.spks = None
         if spks is not None and spks > 1:
@@ -279,15 +296,15 @@ class Tacotron2(AbsTTS):
             )
 
     def forward(
-        self,
-        text: torch.Tensor,
-        text_lengths: torch.Tensor,
-        feats: torch.Tensor,
-        feats_lengths: torch.Tensor,
-        spembs: Optional[torch.Tensor] = None,
-        sids: Optional[torch.Tensor] = None,
-        lids: Optional[torch.Tensor] = None,
-        joint_training: bool = False,
+            self,
+            text: torch.Tensor,
+            text_lengths: torch.Tensor,
+            feats: torch.Tensor,
+            feats_lengths: torch.Tensor,
+            spembs: Optional[torch.Tensor] = None,
+            sids: Optional[torch.Tensor] = None,
+            lids: Optional[torch.Tensor] = None,
+            joint_training: bool = False,
     ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor], torch.Tensor]:
         """Calculate forward propagation.
 
@@ -390,19 +407,23 @@ class Tacotron2(AbsTTS):
             return loss, stats, after_outs
 
     def _forward(
-        self,
-        xs: torch.Tensor,
-        ilens: torch.Tensor,
-        ys: torch.Tensor,
-        olens: torch.Tensor,
-        spembs: torch.Tensor,
-        sids: torch.Tensor,
-        lids: torch.Tensor,
+            self,
+            xs: torch.Tensor,
+            ilens: torch.Tensor,
+            ys: torch.Tensor,
+            olens: torch.Tensor,
+            spembs: torch.Tensor,
+            sids: torch.Tensor,
+            lids: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         hs, hlens = self.enc(xs, ilens)
         if self.use_gst:
             style_embs = self.gst(ys)
             hs = hs + style_embs.unsqueeze(1)
+        if self.use_vae:
+            z, mu, log_var = self.vae(ys)
+            z = self.vae_transformer(z)  # make sure the dimension equals to the text encoder state
+            hs = hs + z
         if self.spks is not None:
             sid_embs = self.sid_emb(sids.view(-1))
             hs = hs + sid_embs.unsqueeze(1)
@@ -414,19 +435,19 @@ class Tacotron2(AbsTTS):
         return self.dec(hs, hlens, ys)
 
     def inference(
-        self,
-        text: torch.Tensor,
-        feats: Optional[torch.Tensor] = None,
-        spembs: Optional[torch.Tensor] = None,
-        sids: Optional[torch.Tensor] = None,
-        lids: Optional[torch.Tensor] = None,
-        threshold: float = 0.5,
-        minlenratio: float = 0.0,
-        maxlenratio: float = 10.0,
-        use_att_constraint: bool = False,
-        backward_window: int = 1,
-        forward_window: int = 3,
-        use_teacher_forcing: bool = False,
+            self,
+            text: torch.Tensor,
+            feats: Optional[torch.Tensor] = None,
+            spembs: Optional[torch.Tensor] = None,
+            sids: Optional[torch.Tensor] = None,
+            lids: Optional[torch.Tensor] = None,
+            threshold: float = 0.5,
+            minlenratio: float = 0.0,
+            maxlenratio: float = 10.0,
+            use_att_constraint: bool = False,
+            backward_window: int = 1,
+            forward_window: int = 3,
+            use_teacher_forcing: bool = False,
     ) -> Dict[str, torch.Tensor]:
         """Generate the sequence of features given the sequences of characters.
 
@@ -483,6 +504,10 @@ class Tacotron2(AbsTTS):
         if self.use_gst:
             style_emb = self.gst(y.unsqueeze(0))
             h = h + style_emb
+        if self.use_vae:
+            z, mu, log_var = self.vae(y.unsqueeze(0))
+            z = self.vae_transformer(z)  # make sure the dimension equals to the text encoder state
+            h = h + z.squeeze(1)
         if self.spks is not None:
             sid_emb = self.sid_emb(sids.view(-1))
             h = h + sid_emb
@@ -505,7 +530,7 @@ class Tacotron2(AbsTTS):
         return dict(feat_gen=out, prob=prob, att_w=att_w)
 
     def _integrate_with_spk_embed(
-        self, hs: torch.Tensor, spembs: torch.Tensor
+            self, hs: torch.Tensor, spembs: torch.Tensor
     ) -> torch.Tensor:
         """Integrate speaker embedding with hidden states.
 

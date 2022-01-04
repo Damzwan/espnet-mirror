@@ -231,7 +231,7 @@ class Text2Speech:
     @property
     def use_speech(self) -> bool:
         """Return speech is needed or not in the inference."""
-        return self.use_teacher_forcing or getattr(self.tts, "use_gst", False)
+        return self.use_teacher_forcing or getattr(self.tts, "use_gst", False) or getattr(self.tts, "use_vae", False)
 
     @property
     def use_sids(self) -> bool:

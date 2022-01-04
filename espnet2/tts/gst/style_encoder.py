@@ -43,17 +43,17 @@ class StyleEncoder(torch.nn.Module):
     """
 
     def __init__(
-        self,
-        idim: int = 80,
-        gst_tokens: int = 10,
-        gst_token_dim: int = 256,
-        gst_heads: int = 4,
-        conv_layers: int = 6,
-        conv_chans_list: Sequence[int] = (32, 32, 64, 64, 128, 128),
-        conv_kernel_size: int = 3,
-        conv_stride: int = 2,
-        gru_layers: int = 1,
-        gru_units: int = 128,
+            self,
+            idim: int = 80,
+            gst_tokens: int = 10,
+            gst_token_dim: int = 256,
+            gst_heads: int = 4,
+            conv_layers: int = 6,
+            conv_chans_list: Sequence[int] = (32, 32, 64, 64, 128, 128),
+            conv_kernel_size: int = 3,
+            conv_stride: int = 2,
+            gru_layers: int = 1,
+            gru_units: int = 128,
     ):
         """Initilize global style encoder module."""
         assert check_argument_types()
@@ -115,14 +115,14 @@ class ReferenceEncoder(torch.nn.Module):
     """
 
     def __init__(
-        self,
-        idim=80,
-        conv_layers: int = 6,
-        conv_chans_list: Sequence[int] = (32, 32, 64, 64, 128, 128),
-        conv_kernel_size: int = 3,
-        conv_stride: int = 2,
-        gru_layers: int = 1,
-        gru_units: int = 128,
+            self,
+            idim=80,
+            conv_layers: int = 6,
+            conv_chans_list: Sequence[int] = (32, 32, 64, 64, 128, 128),
+            conv_kernel_size: int = 3,
+            conv_stride: int = 2,
+            gru_layers: int = 1,
+            gru_units: int = 128,
     ):
         """Initilize reference encoder module."""
         assert check_argument_types()
@@ -131,7 +131,7 @@ class ReferenceEncoder(torch.nn.Module):
         # check hyperparameters are valid
         assert conv_kernel_size % 2 == 1, "kernel size must be odd."
         assert (
-            len(conv_chans_list) == conv_layers
+                len(conv_chans_list) == conv_layers
         ), "the number of conv layers and length of channels list must be the same."
 
         convs = []
@@ -163,8 +163,8 @@ class ReferenceEncoder(torch.nn.Module):
         gru_in_units = idim
         for i in range(conv_layers):
             gru_in_units = (
-                gru_in_units - conv_kernel_size + 2 * padding
-            ) // conv_stride + 1
+                                   gru_in_units - conv_kernel_size + 2 * padding
+                           ) // conv_stride + 1
         gru_in_units *= conv_out_chans
         self.gru = torch.nn.GRU(gru_in_units, gru_units, gru_layers, batch_first=True)
 
@@ -210,12 +210,12 @@ class StyleTokenLayer(torch.nn.Module):
     """
 
     def __init__(
-        self,
-        ref_embed_dim: int = 128,
-        gst_tokens: int = 10,
-        gst_token_dim: int = 256,
-        gst_heads: int = 4,
-        dropout_rate: float = 0.0,
+            self,
+            ref_embed_dim: int = 128,
+            gst_tokens: int = 10,
+            gst_token_dim: int = 256,
+            gst_heads: int = 4,
+            dropout_rate: float = 0.0,
     ):
         """Initilize style token layer module."""
         assert check_argument_types()
@@ -242,6 +242,7 @@ class StyleTokenLayer(torch.nn.Module):
             Tensor: Style token embeddings (B, gst_token_dim).
 
         """
+
         batch_size = ref_embs.size(0)
         # (num_tokens, token_dim) -> (batch_size, num_tokens, token_dim)
         gst_embs = torch.tanh(self.gst_embs).unsqueeze(0).expand(batch_size, -1, -1)

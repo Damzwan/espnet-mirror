@@ -32,14 +32,14 @@ class ESPnetTTSModel(AbsESPnetModel):
     """ESPnet model for text-to-speech task."""
 
     def __init__(
-        self,
-        feats_extract: Optional[AbsFeatsExtract],
-        pitch_extract: Optional[AbsFeatsExtract],
-        energy_extract: Optional[AbsFeatsExtract],
-        normalize: Optional[AbsNormalize and InversibleInterface],
-        pitch_normalize: Optional[AbsNormalize and InversibleInterface],
-        energy_normalize: Optional[AbsNormalize and InversibleInterface],
-        tts: AbsTTS,
+            self,
+            feats_extract: Optional[AbsFeatsExtract],
+            pitch_extract: Optional[AbsFeatsExtract],
+            energy_extract: Optional[AbsFeatsExtract],
+            normalize: Optional[AbsNormalize and InversibleInterface],
+            pitch_normalize: Optional[AbsNormalize and InversibleInterface],
+            energy_normalize: Optional[AbsNormalize and InversibleInterface],
+            tts: AbsTTS,
     ):
         """Initialize ESPnetTTSModel module."""
         assert check_argument_types()
@@ -53,20 +53,20 @@ class ESPnetTTSModel(AbsESPnetModel):
         self.tts = tts
 
     def forward(
-        self,
-        text: torch.Tensor,
-        text_lengths: torch.Tensor,
-        speech: torch.Tensor,
-        speech_lengths: torch.Tensor,
-        durations: Optional[torch.Tensor] = None,
-        durations_lengths: Optional[torch.Tensor] = None,
-        pitch: Optional[torch.Tensor] = None,
-        pitch_lengths: Optional[torch.Tensor] = None,
-        energy: Optional[torch.Tensor] = None,
-        energy_lengths: Optional[torch.Tensor] = None,
-        spembs: Optional[torch.Tensor] = None,
-        sids: Optional[torch.Tensor] = None,
-        lids: Optional[torch.Tensor] = None,
+            self,
+            text: torch.Tensor,
+            text_lengths: torch.Tensor,
+            speech: torch.Tensor,
+            speech_lengths: torch.Tensor,
+            durations: Optional[torch.Tensor] = None,
+            durations_lengths: Optional[torch.Tensor] = None,
+            pitch: Optional[torch.Tensor] = None,
+            pitch_lengths: Optional[torch.Tensor] = None,
+            energy: Optional[torch.Tensor] = None,
+            energy_lengths: Optional[torch.Tensor] = None,
+            spembs: Optional[torch.Tensor] = None,
+            sids: Optional[torch.Tensor] = None,
+            lids: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor], torch.Tensor]:
         """Caclualte outputs and return the loss tensor.
 
@@ -152,20 +152,20 @@ class ESPnetTTSModel(AbsESPnetModel):
         return self.tts(**batch)
 
     def collect_feats(
-        self,
-        text: torch.Tensor,
-        text_lengths: torch.Tensor,
-        speech: torch.Tensor,
-        speech_lengths: torch.Tensor,
-        durations: Optional[torch.Tensor] = None,
-        durations_lengths: Optional[torch.Tensor] = None,
-        pitch: Optional[torch.Tensor] = None,
-        pitch_lengths: Optional[torch.Tensor] = None,
-        energy: Optional[torch.Tensor] = None,
-        energy_lengths: Optional[torch.Tensor] = None,
-        spembs: Optional[torch.Tensor] = None,
-        sids: Optional[torch.Tensor] = None,
-        lids: Optional[torch.Tensor] = None,
+            self,
+            text: torch.Tensor,
+            text_lengths: torch.Tensor,
+            speech: torch.Tensor,
+            speech_lengths: torch.Tensor,
+            durations: Optional[torch.Tensor] = None,
+            durations_lengths: Optional[torch.Tensor] = None,
+            pitch: Optional[torch.Tensor] = None,
+            pitch_lengths: Optional[torch.Tensor] = None,
+            energy: Optional[torch.Tensor] = None,
+            energy_lengths: Optional[torch.Tensor] = None,
+            spembs: Optional[torch.Tensor] = None,
+            sids: Optional[torch.Tensor] = None,
+            lids: Optional[torch.Tensor] = None,
     ) -> Dict[str, torch.Tensor]:
         """Caclualte features and return them as a dict.
 
@@ -221,16 +221,16 @@ class ESPnetTTSModel(AbsESPnetModel):
         return feats_dict
 
     def inference(
-        self,
-        text: torch.Tensor,
-        speech: Optional[torch.Tensor] = None,
-        spembs: Optional[torch.Tensor] = None,
-        sids: Optional[torch.Tensor] = None,
-        lids: Optional[torch.Tensor] = None,
-        durations: Optional[torch.Tensor] = None,
-        pitch: Optional[torch.Tensor] = None,
-        energy: Optional[torch.Tensor] = None,
-        **decode_config,
+            self,
+            text: torch.Tensor,
+            speech: Optional[torch.Tensor] = None,
+            spembs: Optional[torch.Tensor] = None,
+            sids: Optional[torch.Tensor] = None,
+            lids: Optional[torch.Tensor] = None,
+            durations: Optional[torch.Tensor] = None,
+            pitch: Optional[torch.Tensor] = None,
+            energy: Optional[torch.Tensor] = None,
+            **decode_config,
     ) -> Dict[str, torch.Tensor]:
         """Caclualte features and return them as a dict.
 
@@ -249,7 +249,8 @@ class ESPnetTTSModel(AbsESPnetModel):
 
         """
         input_dict = dict(text=text)
-        if decode_config["use_teacher_forcing"] or getattr(self.tts, "use_gst", False):
+        if decode_config["use_teacher_forcing"] or getattr(self.tts, "use_gst", False) or getattr(self.tts, "use_vae",
+                                                                                                  False):
             if speech is None:
                 raise RuntimeError("missing required argument: 'speech'")
             if self.feats_extract is not None:
