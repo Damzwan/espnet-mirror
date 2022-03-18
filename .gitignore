@@ -78,5 +78,6 @@ tools/phonemizer*
 tools/py3mmseg
 tools/._*
 
+**/demo/
 **/demo/exp
 demo/*/exp

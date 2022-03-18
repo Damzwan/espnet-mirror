@@ -4,6 +4,7 @@
 """Tacotron 2 related modules for ESPnet2."""
 
 import logging
+import os
 
 from typing import Dict
 from typing import Optional
@@ -527,7 +528,7 @@ class Tacotron2(AbsTTS):
             forward_window=forward_window,
         )
 
-        return dict(feat_gen=out, prob=prob, att_w=att_w)
+        return dict(feat_gen=out, prob=prob, att_w=att_w, gst=style_emb)
 
     def _integrate_with_spk_embed(
             self, hs: torch.Tensor, spembs: torch.Tensor

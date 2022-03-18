@@ -4,6 +4,7 @@
 
 import argparse
 import logging
+import os
 import shutil
 import sys
 import time
@@ -38,6 +39,7 @@ from espnet2.utils import config_argparse
 from espnet2.utils.types import str2bool
 from espnet2.utils.types import str2triple_str
 from espnet2.utils.types import str_or_none
+import uuid
 
 
 class Text2Speech:
@@ -73,25 +75,25 @@ class Text2Speech:
     """
 
     def __init__(
-        self,
-        train_config: Union[Path, str] = None,
-        model_file: Union[Path, str] = None,
-        threshold: float = 0.5,
-        minlenratio: float = 0.0,
-        maxlenratio: float = 10.0,
-        use_teacher_forcing: bool = False,
-        use_att_constraint: bool = False,
-        backward_window: int = 1,
-        forward_window: int = 3,
-        speed_control_alpha: float = 1.0,
-        noise_scale: float = 0.667,
-        noise_scale_dur: float = 0.8,
-        vocoder_config: Union[Path, str] = None,
-        vocoder_file: Union[Path, str] = None,
-        dtype: str = "float32",
-        device: str = "cpu",
-        seed: int = 777,
-        always_fix_seed: bool = False,
+            self,
+            train_config: Union[Path, str] = None,
+            model_file: Union[Path, str] = None,
+            threshold: float = 0.5,
+            minlenratio: float = 0.0,
+            maxlenratio: float = 10.0,
+            use_teacher_forcing: bool = False,
+            use_att_constraint: bool = False,
+            backward_window: int = 1,
+            forward_window: int = 3,
+            speed_control_alpha: float = 1.0,
+            noise_scale: float = 0.667,
+            noise_scale_dur: float = 0.8,
+            vocoder_config: Union[Path, str] = None,
+            vocoder_file: Union[Path, str] = None,
+            dtype: str = "float32",
+            device: str = "cpu",
+            seed: int = 777,
+            always_fix_seed: bool = False,
     ):
         """Initialize Text2Speech module."""
         assert check_argument_types()
@@ -101,6 +103,7 @@ class Text2Speech:
             train_config, model_file, device
         )
         model.to(dtype=getattr(torch, dtype)).eval()
+        self.createdDict = False
         self.device = device
         self.dtype = dtype
         self.train_args = train_args
@@ -153,14 +156,14 @@ class Text2Speech:
 
     @torch.no_grad()
     def __call__(
-        self,
-        text: Union[str, torch.Tensor, np.ndarray],
-        speech: Union[torch.Tensor, np.ndarray] = None,
-        durations: Union[torch.Tensor, np.ndarray] = None,
-        spembs: Union[torch.Tensor, np.ndarray] = None,
-        sids: Union[torch.Tensor, np.ndarray] = None,
-        lids: Union[torch.Tensor, np.ndarray] = None,
-        decode_conf: Optional[Dict[str, Any]] = None,
+            self,
+            text: Union[str, torch.Tensor, np.ndarray],
+            speech: Union[torch.Tensor, np.ndarray] = None,
+            durations: Union[torch.Tensor, np.ndarray] = None,
+            spembs: Union[torch.Tensor, np.ndarray] = None,
+            sids: Union[torch.Tensor, np.ndarray] = None,
+            lids: Union[torch.Tensor, np.ndarray] = None,
+            decode_conf: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, torch.Tensor]:
         """Run text-to-speech."""
         assert check_argument_types()
@@ -175,8 +178,22 @@ class Text2Speech:
         if self.use_spembs and spembs is None:
             raise RuntimeError("Missing required argument: 'spembs'")
 
+        if not self.createdDict:
+            if not os.path.exists('gst_data'):
+                os.mkdir("gst_data")
+            if not os.path.exists('gst_data/text'):
+                os.mkdir("gst_data/text")
+            if not os.path.exists('gst_data/gst'):
+                os.mkdir("gst_data/gst")
+            self.createdDict = True
+
+        random_id = str(uuid.uuid1())
+
         # prepare batch
         if isinstance(text, str):
+            f = open('gst_data/text/' + random_id, "w")
+            f.write(text)
+            f.close()
             text = self.preprocess_fn("<dummy>", dict(text=text))["text"]
         batch = dict(text=text)
         if speech is not None:
@@ -201,6 +218,7 @@ class Text2Speech:
         if self.always_fix_seed:
             set_all_random_seed(self.seed)
         output_dict = self.model.inference(**batch, **cfg)
+        torch.save(output_dict.get("style_emb"), 'gst_data/gst/' + random_id)
 
         # calculate additional metrics
         if output_dict.get("att_w") is not None:
@@ -250,9 +268,9 @@ class Text2Speech:
 
     @staticmethod
     def from_pretrained(
-        model_tag: Optional[str] = None,
-        vocoder_tag: Optional[str] = None,
-        **kwargs: Optional[Any],
+            model_tag: Optional[str] = None,
+            vocoder_tag: Optional[str] = None,
+            **kwargs: Optional[Any],
     ):
         """Build Text2Speech instance from the pretrained model.
 
@@ -311,33 +329,33 @@ class Text2Speech:
 
 
 def inference(
-    output_dir: str,
-    batch_size: int,
-    dtype: str,
-    ngpu: int,
-    seed: int,
-    num_workers: int,
-    log_level: Union[int, str],
-    data_path_and_name_and_type: Sequence[Tuple[str, str, str]],
-    key_file: Optional[str],
-    train_config: Optional[str],
-    model_file: Optional[str],
-    model_tag: Optional[str],
-    threshold: float,
-    minlenratio: float,
-    maxlenratio: float,
-    use_teacher_forcing: bool,
-    use_att_constraint: bool,
-    backward_window: int,
-    forward_window: int,
-    speed_control_alpha: float,
-    noise_scale: float,
-    noise_scale_dur: float,
-    always_fix_seed: bool,
-    allow_variable_data_keys: bool,
-    vocoder_config: Optional[str],
-    vocoder_file: Optional[str],
-    vocoder_tag: Optional[str],
+        output_dir: str,
+        batch_size: int,
+        dtype: str,
+        ngpu: int,
+        seed: int,
+        num_workers: int,
+        log_level: Union[int, str],
+        data_path_and_name_and_type: Sequence[Tuple[str, str, str]],
+        key_file: Optional[str],
+        train_config: Optional[str],
+        model_file: Optional[str],
+        model_tag: Optional[str],
+        threshold: float,
+        minlenratio: float,
+        maxlenratio: float,
+        use_teacher_forcing: bool,
+        use_att_constraint: bool,
+        backward_window: int,
+        forward_window: int,
+        speed_control_alpha: float,
+        noise_scale: float,
+        noise_scale_dur: float,
+        always_fix_seed: bool,
+        allow_variable_data_keys: bool,
+        vocoder_config: Optional[str],
+        vocoder_file: Optional[str],
+        vocoder_tag: Optional[str],
 ):
     """Run text-to-speech inference."""
     assert check_argument_types()
@@ -421,8 +439,8 @@ def inference(
     from matplotlib.ticker import MaxNLocator
 
     with NpyScpWriter(
-        output_dir / "norm",
-        output_dir / "norm/feats.scp",
+            output_dir / "norm",
+            output_dir / "norm/feats.scp",
     ) as norm_writer, NpyScpWriter(
         output_dir / "denorm", output_dir / "denorm/feats.scp"
     ) as denorm_writer, open(
@@ -649,7 +667,7 @@ def get_parser():
         "--model_tag",
         type=str,
         help="Pretrained model tag. If specify this option, train_config and "
-        "model_file will be overwritten",
+             "model_file will be overwritten",
     )
 
     group = parser.add_argument_group("Decoding related")
@@ -735,7 +753,7 @@ def get_parser():
         "--vocoder_tag",
         type=str,
         help="Pretrained vocoder tag. If specify this option, vocoder_config and "
-        "vocoder_file will be overwritten",
+             "vocoder_file will be overwritten",
     )
     return parser
 
